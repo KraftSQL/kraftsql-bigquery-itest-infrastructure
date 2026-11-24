@@ -7,7 +7,7 @@ jobs:
     name: Validate
     runs-on: ubuntu-26.04
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: opentofu/setup-opentofu@v2.0.2
         with:
           tofu_wrapper: false
