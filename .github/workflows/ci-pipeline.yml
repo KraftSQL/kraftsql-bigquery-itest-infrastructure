@@ -1,0 +1,16 @@
+name: CI Pipeline
+
+on: [ push, pull_request ]
+
+jobs:
+  validate:
+    name: Validate
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: opentofu/setup-opentofu@v2.0.2
+        with:
+          tofu_wrapper: false
+          cache: true
+      - run: tofu init -backend=false
+      - run: tofu validate
