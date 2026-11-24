@@ -2,6 +2,15 @@ name: CI Pipeline
 
 on: [ push, pull_request ]
 
+permissions:
+  contents: read
+
+env:
+  # See the outputs of self-ci.tf:
+  WORKLOAD_IDENTITY_PROVIDER: projects/505445121169/locations/global/workloadIdentityPools/github-actions/providers/github-actions-oidc
+  PLAN_SERVICE_ACCOUNT: github-actions-plan@kraftsql-bigquery.iam.gserviceaccount.com
+  APPLY_SERVICE_ACCOUNT: github-actions-apply@kraftsql-bigquery.iam.gserviceaccount.com
+
 jobs:
   validate:
     name: Validate
@@ -14,3 +23,57 @@ jobs:
           cache: true
       - run: tofu init -backend=false
       - run: tofu validate
+
+  plan:
+    name: Plan
+    # Only on pushes: PRs from forks can't authenticate, and PRs from this repository are covered by the push.
+    if: github.event_name == 'push'
+    needs: validate
+    runs-on: ubuntu-26.04
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ env.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.PLAN_SERVICE_ACCOUNT }}
+      - uses: opentofu/setup-opentofu@v2.0.2
+        with:
+          tofu_wrapper: false
+          cache: true
+      - run: tofu init -input=false
+      - run: tofu plan -lock=false -input=false -out=tfplan
+      - uses: actions/upload-artifact@v7
+        with:
+          name: tfplan
+          path: tfplan
+          if-no-files-found: error
+
+  apply:
+    name: Apply
+    if: github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    needs: plan
+    runs-on: ubuntu-26.04
+    concurrency:
+      group: apply
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ env.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.APPLY_SERVICE_ACCOUNT }}
+      - uses: opentofu/setup-opentofu@v2.0.2
+        with:
+          tofu_wrapper: false
+          cache: true
+      - run: tofu init -input=false
+      - uses: actions/download-artifact@v8
+        with:
+          name: tfplan
+      - run: tofu apply -input=false tfplan
