@@ -6,7 +6,7 @@ permissions:
   contents: read
 
 env:
-  # See the outputs of self-ci.tf:
+  # See the outputs of the deployment, as it manages authentication for GitHub Actions itself:
   WORKLOAD_IDENTITY_PROVIDER: projects/505445121169/locations/global/workloadIdentityPools/github-actions/providers/github-actions-oidc
   PLAN_SERVICE_ACCOUNT: github-actions-plan@kraftsql-bigquery.iam.gserviceaccount.com
   APPLY_SERVICE_ACCOUNT: github-actions-apply@kraftsql-bigquery.iam.gserviceaccount.com
