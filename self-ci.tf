@@ -1,39 +1,6 @@
+# CI pipeline of this repository itself.
 locals {
-  github_repository_id = "1470619814" # KraftSQL/kraftsql-bigquery-itest-infrastructure; immutable, unlike the name
-}
-
-resource "google_project_service" "github_actions" {
-  for_each = toset([
-    "cloudresourcemanager.googleapis.com",
-    "iam.googleapis.com",
-    "iamcredentials.googleapis.com",
-    "sts.googleapis.com",
-  ])
-  service            = each.value
-  disable_on_destroy = false
-}
-
-resource "google_iam_workload_identity_pool" "github_actions" {
-  workload_identity_pool_id = "github-actions"
-  display_name              = "GitHub Actions"
-
-  depends_on = [google_project_service.github_actions]
-}
-
-resource "google_iam_workload_identity_pool_provider" "github_actions" {
-  workload_identity_pool_id          = google_iam_workload_identity_pool.github_actions.workload_identity_pool_id
-  workload_identity_pool_provider_id = "github-actions-oidc"
-  display_name                       = "GitHub Actions OIDC"
-
-  oidc {
-    issuer_uri = "https://token.actions.githubusercontent.com"
-  }
-  attribute_mapping = {
-    "google.subject"              = "assertion.sub"
-    "attribute.repository_id"     = "assertion.repository_id"
-    "attribute.repository_id_ref" = "assertion.repository_id + '@' + assertion.ref"
-  }
-  attribute_condition = "assertion.repository_id == '${local.github_repository_id}'"
+  github_repository_id = local.github_repository_ids.itest_infrastructure
 }
 
 # Read-only service account for `tofu plan`, usable from any branch.
@@ -82,10 +49,6 @@ resource "google_service_account_iam_member" "github_actions_apply" {
   service_account_id = google_service_account.github_actions_apply.name
   role               = "roles/iam.workloadIdentityUser"
   member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github_actions.name}/attribute.repository_id_ref/${local.github_repository_id}@refs/heads/main"
-}
-
-output "github_actions_workload_identity_provider" {
-  value = google_iam_workload_identity_pool_provider.github_actions.name
 }
 
 output "github_actions_plan_service_account" {
